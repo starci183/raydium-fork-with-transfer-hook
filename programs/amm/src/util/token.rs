@@ -2,7 +2,7 @@ use super::{create_or_allocate_account, get_recent_epoch};
 use crate::error::ErrorCode;
 use crate::states::*;
 use anchor_lang::{
-    accounts::account_info, prelude::*, solana_program::{self, address_lookup_table::instruction, program::{invoke, invoke_signed}, program_option::COption}, system_program::{create_account, CreateAccount}
+    prelude::*, solana_program::{self, program::{invoke}, program_option::COption}, system_program::{create_account, CreateAccount}
 };
 use anchor_spl::memo::spl_memo;
 use anchor_spl::token::{self, Token};
@@ -102,6 +102,16 @@ impl<'info> TransferCheckedWithTransferHookInstruction<'info> {
     }
 }
 
+pub fn has_transfer_hook(mint: &InterfaceAccount<Mint>) -> Result<bool> {
+    // Lấy raw data từ account của mint
+    let mint_account_info = mint.to_account_info();
+    let data = mint_account_info.try_borrow_data()?;
+    // Parse dữ liệu với extension
+    let state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&data)?;
+    // Check xem trong extension có TransferHook không
+    let has_hook = state.get_extension_types()?.contains(&ExtensionType::TransferHook);
+    Ok(has_hook)
+}
 
 pub fn transfer_from_user_to_pool_vault<'info>(
     signer: &Signer<'info>,
@@ -124,6 +134,9 @@ pub fn transfer_from_user_to_pool_vault<'info>(
             if from_token_info.owner == token_program_2022.key {
                 token_program_info = token_program_2022.to_account_info()
             }
+            if has_transfer_hook(&mint)? && !transfer_hook_remaining_accounts.is_empty() {
+                // if transfer hook is enabled, we need to use the transfer checked with transfer hook instruction
+                // the last account in the remaining accounts is the extra account meta list
             // account in the last is the meta list
             let extra_meta_list = transfer_hook_remaining_accounts.last().unwrap();
             // account next to the last is the transfer hook program
@@ -161,22 +174,21 @@ pub fn transfer_from_user_to_pool_vault<'info>(
                 &transfer_checked_with_transfer_hook.to_account_infos(),
             )?;
             Ok(())
-            // token_2022::transfer_checked(
-            //     CpiContext::new(
-            //         token_program_info,
-            //         TransferCheckedWithTransferHookInstruction{
-            //             from: from_token_info,
-            //             to: to_vault.to_account_info(),
-            //             authority: signer.to_account_info(),
-            //             mint: mint.to_account_info(),
-            //             extra_meta_list: extra_meta_list.to_account_info(),
-            //             extra_accounts: extra_accounts.to_vec(),
-            //             transfer_hook_program: transfer_hook_program.to_account_info(),
-            //         },
-            //     ),
-            //     amount,
-            //     mint.decimals,
-            // )
+        } else {
+            token_2022::transfer_checked(
+                CpiContext::new(
+                    token_program_info,
+                    token_2022::TransferChecked {
+                        from: from_token_info,
+                        to: to_vault.to_account_info(),
+                        authority: signer.to_account_info(),
+                        mint: mint.to_account_info(),
+                    },
+                ),
+                amount,
+                mint.decimals,
+            )
+        }      
         }
         _ => token::transfer(
             CpiContext::new(
