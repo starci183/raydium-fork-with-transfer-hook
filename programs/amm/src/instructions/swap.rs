@@ -660,6 +660,7 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
             &ctx.token_program,
             None,
             amount_0,
+            Vec::new(),
         )?;
         if vault_1.amount <= amount_1 {
             // freeze pool, disable all instructions
@@ -684,6 +685,7 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
             &ctx.token_program,
             None,
             amount_1,
+            Vec::new(),
         )?;
         if vault_0.amount <= amount_0 {
             // freeze pool, disable all instructions

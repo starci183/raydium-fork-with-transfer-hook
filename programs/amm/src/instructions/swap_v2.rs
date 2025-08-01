@@ -234,6 +234,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_0,
+            Vec::new(),
         )?;
         if vault_1.amount <= transfer_amount_1 {
             // freeze pool, disable all instructions
@@ -276,6 +277,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_1,
+            Vec::new(),
         )?;
         if vault_0.amount <= transfer_amount_0 {
             // freeze pool, disable all instructions

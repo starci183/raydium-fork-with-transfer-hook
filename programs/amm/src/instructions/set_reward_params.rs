@@ -124,6 +124,7 @@ pub fn set_reward_params<'a, 'b, 'c: 'info, 'info>(
             &ctx.accounts.token_program,
             Some(ctx.accounts.token_program_2022.to_account_info()),
             reward_amount_with_transfer_fee,
+            Vec::new(),
         )?;
     }
 

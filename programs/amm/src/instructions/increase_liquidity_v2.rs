@@ -117,5 +117,6 @@ pub fn increase_liquidity_v2<'a, 'b, 'c: 'info, 'info>(
         amount_0_max,
         amount_1_max,
         base_flag,
+        Vec::new(), // transfer_hook_remaining_accounts
     )
 }

@@ -106,6 +106,7 @@ pub fn increase_liquidity_v1<'a, 'b, 'c: 'info, 'info>(
         amount_0_max,
         amount_1_max,
         base_flag,
+        Vec::new(), // transfer_hook_remaining_accounts
     )
 }
 
@@ -129,6 +130,7 @@ pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
     amount_0_max: u64,
     amount_1_max: u64,
     base_flag: Option<bool>,
+    transfer_hook_remaining_accounts: Vec<AccountInfo<'info>>,
 ) -> Result<()> {
     let mut liquidity = liquidity;
     let pool_state = &mut pool_state_loader.load_mut()?;
@@ -178,6 +180,7 @@ pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
         tick_lower,
         tick_upper,
         base_flag,
+        transfer_hook_remaining_accounts.clone(),
     )?;
 
     personal_position.increase_liquidity(

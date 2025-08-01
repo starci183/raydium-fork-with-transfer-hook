@@ -2,10 +2,7 @@ use super::{create_or_allocate_account, get_recent_epoch};
 use crate::error::ErrorCode;
 use crate::states::*;
 use anchor_lang::{
-    prelude::*,
-    solana_program,
-    solana_program::program_option::COption,
-    system_program::{create_account, CreateAccount},
+    accounts::account_info, prelude::*, solana_program::{self, address_lookup_table::instruction, program::{invoke, invoke_signed}, program_option::COption}, system_program::{create_account, CreateAccount}
 };
 use anchor_spl::memo::spl_memo;
 use anchor_spl::token::{self, Token};
@@ -52,6 +49,60 @@ pub fn invoke_memo_instruction<'info>(
     solana_program::program::invoke(&ix, &accounts[..])
 }
 
+struct TransferCheckedWithTransferHookInstruction<'info> {
+    from: AccountInfo<'info>,
+    to: AccountInfo<'info>,
+    authority: AccountInfo<'info>,
+    mint: AccountInfo<'info>,
+    extra_meta_list: AccountInfo<'info>,
+    extra_accounts: Vec<AccountInfo<'info>>,
+    transfer_hook_program: AccountInfo<'info>,
+}
+
+impl<'info> TransferCheckedWithTransferHookInstruction<'info> {
+    pub fn to_account_infos(&self) -> Vec<AccountInfo<'info>> {
+        let mut infos = vec![
+            self.from.clone(),
+            self.to.clone(),
+            self.authority.clone(),
+            self.mint.clone(),
+            self.extra_meta_list.clone(),
+        ];
+        infos.extend(self.extra_accounts.iter().cloned());
+        infos.push(self.transfer_hook_program.clone());
+        infos
+    }
+    pub fn append_to_instruction(
+        &self,
+        instruction: &mut solana_program::instruction::Instruction,
+    ) {
+        let extra_accounts = self.extra_accounts.iter().map(|a: &AccountInfo<'info>| {
+            let account_info = a.to_account_info();
+            AccountMeta {
+                pubkey: account_info.key(),
+                is_signer: account_info.is_signer,
+                is_writable: account_info.is_writable,
+            }
+        }).collect::<Vec<_>>();
+        let transfer_hook_program = AccountMeta {
+            pubkey: self.transfer_hook_program.key(),
+            is_signer: self.transfer_hook_program.is_signer,
+            is_writable: self.transfer_hook_program.is_writable,
+        };
+        let extra_meta_list = AccountMeta {
+            pubkey: self.extra_meta_list.key(),
+            is_signer: self.extra_meta_list.is_signer,
+            is_writable: self.extra_meta_list.is_writable,
+        };
+        instruction.accounts.extend(
+            extra_accounts
+        );
+        instruction.accounts.push(transfer_hook_program);
+        instruction.accounts.push(extra_meta_list);
+    }
+}
+
+
 pub fn transfer_from_user_to_pool_vault<'info>(
     signer: &Signer<'info>,
     from: &AccountInfo<'info>,
@@ -60,10 +111,12 @@ pub fn transfer_from_user_to_pool_vault<'info>(
     token_program: &AccountInfo<'info>,
     token_program_2022: Option<AccountInfo<'info>>,
     amount: u64,
+    transfer_hook_remaining_accounts: Vec<AccountInfo<'info>>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
+    msg!("Remaining account number {}", transfer_hook_remaining_accounts.len());
     let mut token_program_info = token_program.to_account_info();
     let from_token_info = from.to_account_info();
     match (mint, token_program_2022) {
@@ -71,19 +124,59 @@ pub fn transfer_from_user_to_pool_vault<'info>(
             if from_token_info.owner == token_program_2022.key {
                 token_program_info = token_program_2022.to_account_info()
             }
-            token_2022::transfer_checked(
-                CpiContext::new(
-                    token_program_info,
-                    token_2022::TransferChecked {
-                        from: from_token_info,
-                        to: to_vault.to_account_info(),
-                        authority: signer.to_account_info(),
-                        mint: mint.to_account_info(),
-                    },
-                ),
+            // account in the last is the meta list
+            let extra_meta_list = transfer_hook_remaining_accounts.last().unwrap();
+            // account next to the last is the transfer hook program
+            let transfer_hook_program = transfer_hook_remaining_accounts
+                .get(transfer_hook_remaining_accounts.len() - 2)
+                .unwrap();
+            // remaining accounts from index 4 => len -3 is the extra accounts
+            let extra_accounts = &transfer_hook_remaining_accounts[0..transfer_hook_remaining_accounts.len() - 2];
+            msg!("Transfer with transfer hook, remaining accounts: {}", extra_accounts.len());
+            msg!("[Counter Account PDA: {}]", extra_accounts[0].key());
+            msg!("[Extra Meta List PDA: {}]", extra_meta_list.key());
+            msg!("[Transfer Hook Program: {}]", transfer_hook_program.key());
+            let mut ix = spl_token_2022::instruction::transfer_checked(
+                &token_program_info.key(),
+                &from_token_info.key(),
+                &mint.key(),
+                &to_vault.key(),
+                &signer.key(),
+                &[],
                 amount,
                 mint.decimals,
-            )
+            )?;
+            let transfer_checked_with_transfer_hook = TransferCheckedWithTransferHookInstruction {
+                from: from_token_info,
+                to: to_vault.to_account_info(),
+                authority: signer.to_account_info(),
+                mint: mint.to_account_info(),
+                extra_meta_list: extra_meta_list.to_account_info(),
+                extra_accounts: extra_accounts.to_vec(),
+                transfer_hook_program: transfer_hook_program.to_account_info(),
+            };
+            transfer_checked_with_transfer_hook.append_to_instruction(&mut ix);
+            invoke(
+                &ix,
+                &transfer_checked_with_transfer_hook.to_account_infos(),
+            )?;
+            Ok(())
+            // token_2022::transfer_checked(
+            //     CpiContext::new(
+            //         token_program_info,
+            //         TransferCheckedWithTransferHookInstruction{
+            //             from: from_token_info,
+            //             to: to_vault.to_account_info(),
+            //             authority: signer.to_account_info(),
+            //             mint: mint.to_account_info(),
+            //             extra_meta_list: extra_meta_list.to_account_info(),
+            //             extra_accounts: extra_accounts.to_vec(),
+            //             transfer_hook_program: transfer_hook_program.to_account_info(),
+            //         },
+            //     ),
+            //     amount,
+            //     mint.decimals,
+            // )
         }
         _ => token::transfer(
             CpiContext::new(
@@ -336,7 +429,6 @@ pub fn create_position_nft_mint_with_extensions<'info>(
         ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(&extensions)?;
 
     let lamports = Rent::get()?.minimum_balance(space);
-
     // create mint account
     create_account(
         CpiContext::new(

@@ -151,7 +151,6 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
         &ctx.accounts.token_program_2022,
         with_metadata,
     )?;
-
     // create user position nft account
     create(CpiContext::new(
         ctx.accounts.associated_token_program.to_account_info(),
@@ -164,7 +163,6 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
             token_program: ctx.accounts.token_program_2022.to_account_info(),
         },
     ))?;
-
     open_position(
         &ctx.accounts.payer,
         &ctx.accounts.position_nft_owner,
@@ -199,5 +197,6 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
         with_metadata,
         base_flag,
         true,
+        ctx.remaining_accounts.to_vec()
     )
 }

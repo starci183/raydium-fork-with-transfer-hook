@@ -199,6 +199,7 @@ pub fn open_position_v1<'a, 'b, 'c: 'info, 'info>(
         with_metadata,
         base_flag,
         false,
+        ctx.remaining_accounts.to_vec(),
     )
 }
 
@@ -237,6 +238,7 @@ pub fn open_position<'a, 'b, 'c: 'info, 'info>(
     with_metadata: bool,
     base_flag: Option<bool>,
     use_metadata_extension: bool,
+    transfer_hook_remaining_accounts: Vec<AccountInfo<'info>>,
 ) -> Result<()> {
     let mut liquidity = liquidity;
     {
@@ -324,6 +326,7 @@ pub fn open_position<'a, 'b, 'c: 'info, 'info>(
             tick_lower_index,
             tick_upper_index,
             base_flag,
+            transfer_hook_remaining_accounts.clone(),
         )?;
 
         personal_position.initialize(
@@ -404,6 +407,7 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
     tick_lower_index: i32,
     tick_upper_index: i32,
     base_flag: Option<bool>,
+    transfer_hook_remaining_accounts: Vec<AccountInfo<'info>>,
 ) -> Result<LiquidityChangeResult> {
     if *liquidity == 0 {
         if base_flag.is_none() {
@@ -565,6 +569,7 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
     if token_program_2022.is_some() {
         token_2022_program_opt = Some(token_program_2022.clone().unwrap().to_account_info());
     }
+    msg!("Transfer hook remaining accounts: {}", transfer_hook_remaining_accounts.len());
     transfer_from_user_to_pool_vault(
         payer,
         token_account_0,
@@ -573,16 +578,18 @@ pub fn add_liquidity<'b, 'c: 'info, 'info>(
         &token_program,
         token_2022_program_opt.clone(),
         amount_0 + amount_0_transfer_fee,
+        transfer_hook_remaining_accounts
     )?;
-    transfer_from_user_to_pool_vault(
-        payer,
-        token_account_1,
-        token_vault_1,
-        vault_1_mint,
-        &token_program,
-        token_2022_program_opt.clone(),
-        amount_1 + amount_1_transfer_fee,
-    )?;
+    // transfer_from_user_to_pool_vault(
+    //     payer,
+    //     token_account_1,
+    //     token_vault_1,
+    //     vault_1_mint,
+    //     &token_program,
+    //     token_2022_program_opt.clone(),
+    //     amount_1 + amount_1_transfer_fee,
+    //     transfer_hook_remaining_accounts.clone()
+    // )?;
     emit!(LiquidityChangeEvent {
         pool_state: pool_state.key(),
         tick: pool_state.tick_current,

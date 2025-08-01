@@ -75,16 +75,12 @@ pub mod transfer_hook {
     }
 
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
-
         if amount > 50 {
             msg!("The amount is too big {0}", amount);
-        //    return err!(MyError::AmountTooBig);
+            // return err!(MyError::AmountTooBig);
         }
-
         ctx.accounts.counter_account.counter += 1;
-
         msg!("This token has been transfered {0} times", ctx.accounts.counter_account.counter);
-       
         Ok(())
     }
 
@@ -95,7 +91,6 @@ pub mod transfer_hook {
         data: &[u8],
     ) -> Result<()> {
         let instruction = TransferHookInstruction::unpack(data)?;
-
         // match instruction discriminator to transfer hook interface execute instruction  
         // token2022 program CPIs this instruction on token transfer
         match instruction {
@@ -161,6 +156,7 @@ pub struct TransferHook<'info> {
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
     #[account(
+        mut,
         seeds = [b"counter"],
         bump
     )]

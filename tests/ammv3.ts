@@ -10,6 +10,9 @@ import {
     mintTo,
     Account,
     MINT_SIZE,
+    createApproveInstruction,
+    getAssociatedTokenAddressSync,
+    createTransferCheckedWithTransferHookInstruction,
 } from "@solana/spl-token";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { assert } from "chai";
@@ -51,25 +54,35 @@ describe("ammv3", () => {
     let tokenVault1Pda: PublicKey;
     let observationStatePda: PublicKey;
     let tickArrayBitmapPda: PublicKey;
+    let tickSpacing: number;
+    let extensionLamports: number;
+    let mintLamports: number;
+    let tickArrayLowerPda: PublicKey;
+    let tickArrayUpperPda: PublicKey;
+    let cetusAtaOfTo: Account;
+    let counterAccountPda: PublicKey;
+    let extraAccountMetaListPda: PublicKey;
     before(async () => {
         // create mint
         const extensions = [ExtensionType.TransferHook];
         const mintLen = getMintLen(extensions);
-        const lamports =
+        extensionLamports =
             await provider.connection.getMinimumBalanceForRentExemption(mintLen);
+        mintLamports = 
+            await provider.connection.getMinimumBalanceForRentExemption(MINT_SIZE);
         const transaction = new anchor.web3.Transaction().add(
             anchor.web3.SystemProgram.createAccount({
                 fromPubkey: payer.publicKey,
                 newAccountPubkey: cetusMint.publicKey,
                 space: mintLen,
-                lamports,
+                lamports: extensionLamports,
                 programId: TOKEN_2022_PROGRAM_ID,
             }),
             anchor.web3.SystemProgram.createAccount({
                 fromPubkey: payer.publicKey,
                 newAccountPubkey: usdcMint.publicKey,
                 space: MINT_SIZE,
-                lamports,
+                lamports: mintLamports,
                 programId: TOKEN_2022_PROGRAM_ID,
             }),
             createInitializeTransferHookInstruction(
@@ -108,6 +121,11 @@ describe("ammv3", () => {
             })
             .signers([payer.payer])
             .rpc();
+        [extraAccountMetaListPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("extra-account-metas"), cetusMint.publicKey.toBuffer()],
+            transferHookProgram.programId
+        );
+        // get the extra account metas for the transfer hook
         // create source ATA for liquidity provider
         usdcAtaOfLiquidityProvider = await getOrCreateAssociatedTokenAccount(
             provider.connection,
@@ -139,13 +157,66 @@ describe("ammv3", () => {
             cetusMint.publicKey,
             cetusAtaOfLiquidityProvider.address,
             admin.publicKey,
-            BigInt(10_000_000_000), // 100 tokens with 8 decimals
+            BigInt(11_000_000_000), // 100 tokens with 8 decimals
             [
                 admin
             ],
             undefined,
             TOKEN_2022_PROGRAM_ID
         );
+        // demo transfer hook to ensure it works
+        cetusAtaOfTo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            payer.payer,
+            cetusMint.publicKey,    
+            to.publicKey,
+            false,
+            undefined,
+            undefined,
+            TOKEN_2022_PROGRAM_ID
+        );
+        const transferCheckedDemoInstruction = await createTransferCheckedWithTransferHookInstruction(
+            provider.connection,
+            cetusAtaOfLiquidityProvider.address,
+            cetusMint.publicKey,    
+            cetusAtaOfTo.address,
+            liqudityProvider.publicKey,  
+            BigInt(1_000_000_000), // 10 tokens with 8
+            8,
+            [],
+            undefined,
+            TOKEN_2022_PROGRAM_ID,
+        );
+        // transferCheckedDemoInstruction.keys.push(
+        //     {
+        //         pubkey: transferHookProgram.programId,
+        //         isSigner: false,
+        //         isWritable: true,
+        //     }
+        // );
+        const transferCheckedDemoTx = await provider.sendAndConfirm(
+            new anchor.web3.Transaction().add(transferCheckedDemoInstruction),
+            [payer.payer, liqudityProvider],
+            {
+                commitment: "confirmed",
+            }
+        );
+        console.log(`Transfer Checked Demo Transaction signature: ${transferCheckedDemoTx}`);
+        [counterAccountPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("counter")],
+            transferHookProgram.programId
+        );
+        const counterAccount = await transferHookProgram.account.counterAccount.fetch(
+            counterAccountPda
+        );
+        assert.equal(counterAccount.counter, 1, "Counter should be 1 after demo transfer");
+        // assert counter
+        console.log(`Counter Account PDA: ${counterAccountPda.toBase58()}`);
+        console.log(`Cetus ATA of Liquidity Provider: ${cetusAtaOfLiquidityProvider.address.toBase58()}`);
+        console.log(`Cetus ATA of To: ${cetusAtaOfTo.address.toBase58()}`);
+        console.log(`Transfer Hook Program ID: ${transferHookProgram.programId.toBase58()}`);
+        console.log(`Account meta list PDA: ${extraAccountMetaListPda.toBase58()}`);
+        console.log(transferCheckedDemoInstruction.keys)
         await mintTo(
             provider.connection,
             payer.payer,
@@ -181,15 +252,14 @@ describe("ammv3", () => {
         assert.isAtLeast(adminBalance, 2 * LAMPORTS_PER_SOL, "Admin account should have at least 2 SOL");
         // define AMM config parameters
         const index = 1;            // config id
-        const tickSpacing = 50;      // tick spacing
+        tickSpacing = 50;      // tick spacing
         const tradeFeeRate = 2500;  // 0.25%
         const protocolFeeRate = 800; // 0.08%
         const fundFeeRate = 0;      // no fund fee
-
         // create AMM config
         [ammConfigPda] = PublicKey.findProgramAddressSync(
             [
-                Buffer.from("amm_config"), 
+                Buffer.from("amm_config"),
                 Buffer.from(new anchor.BN(index).toArray("be", 2))],
             ammv3Program.programId
         );
@@ -203,8 +273,8 @@ describe("ammv3", () => {
             ammConfig: ammConfigPda,
             owner: admin.publicKey,
         })
-        .signers([admin])
-        .rpc();
+            .signers([admin])
+            .rpc();
         // assert that the AMM config was created successfully
         console.log(`Create AMM Config Transaction signature: ${createAmmConfigTx}`);
         const ammConfig = await ammv3Program.account.ammConfig.fetch(ammConfigPda);
@@ -213,7 +283,6 @@ describe("ammv3", () => {
         assert.equal(ammConfig.tradeFeeRate, tradeFeeRate);
         assert.equal(ammConfig.protocolFeeRate, protocolFeeRate);
         assert.equal(ammConfig.fundFeeRate, fundFeeRate);
-
         [poolStatePda] = PublicKey.findProgramAddressSync(
             [
                 Buffer.from("pool"),
@@ -251,7 +320,7 @@ describe("ammv3", () => {
         // assert that liquidity provider has enough SOL
         const liquidityProviderBalance = await provider.connection.getBalance(liqudityProvider.publicKey);
         assert.isAtLeast(liquidityProviderBalance, 2 * LAMPORTS_PER_SOL, "Liquidity provider account should have at least 2 SOL");
-        
+
         const createPoolTx = await ammv3Program.methods
             .createPool(sqrtPriceX64, openTime)
             .accounts({
@@ -277,6 +346,132 @@ describe("ammv3", () => {
         console.log(`Transaction signature: ${createPoolTx}`);
     });
     it("Add liquidity to the pool", async () => {
-        
-    })
+        // Define liquidity parameters
+        const TICK_ARRAY_SIZE = 60;
+        const ticksPerArray = tickSpacing * TICK_ARRAY_SIZE; // 3000
+        const tickLowerIndex = -1000;  // Lower tick bound
+        const tickUpperIndex = 1000;   // Upper tick bound
+        const tickArrayLowerStartIndex = Math.floor(tickLowerIndex / ticksPerArray) * ticksPerArray;
+        const tickArrayUpperStartIndex = Math.floor(tickUpperIndex / ticksPerArray) * ticksPerArray;
+        const liquidity = new anchor.BN("100000000"); // Amount of liquidity to add
+        const amountCetusMax = new anchor.BN("10000000000"); // Max amount of token0 (Cetus) to deposit
+        const amountUsdcMax = new anchor.BN("100000000"); // Max amount of token1 (USDC) to deposit
+        [tickArrayLowerPda] = PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("tick_array"),
+                poolStatePda.toBuffer(),
+                new anchor.BN(tickArrayLowerStartIndex).toTwos(32).toArrayLike(Buffer, "be", 4),
+            ],
+            ammv3Program.programId
+        );
+        [tickArrayUpperPda] = PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("tick_array"),
+                poolStatePda.toBuffer(),
+                new anchor.BN(tickArrayUpperStartIndex).toTwos(32).toArrayLike(Buffer, "be", 4),
+            ],
+            ammv3Program.programId
+        );
+        console.log(new anchor.BN(tickArrayUpperStartIndex).toArrayLike(Buffer, "be", 4))
+        // Approve token transfers
+        const approveTx = new anchor.web3.Transaction().add(
+            // Approve token0 transfer
+            createApproveInstruction(
+                cetusAtaOfLiquidityProvider.address,
+                tokenVault0Pda,
+                liqudityProvider.publicKey,
+                amountCetusMax.toNumber(),
+                [],
+                TOKEN_2022_PROGRAM_ID
+            ),
+            // Approve token1 transfer
+            createApproveInstruction(
+                usdcAtaOfLiquidityProvider.address,
+                tokenVault1Pda,
+                liqudityProvider.publicKey,
+                amountUsdcMax.toNumber(),
+                [],
+                TOKEN_2022_PROGRAM_ID
+            )
+        );
+        await provider.sendAndConfirm(approveTx, [payer.payer, liqudityProvider]);
+        const positionNftMint = Keypair.generate();
+        const positionNftAccount = getAssociatedTokenAddressSync(
+            positionNftMint.publicKey,
+            liqudityProvider.publicKey,
+            false,
+            TOKEN_2022_PROGRAM_ID
+        );
+
+        console.log(`Position NFT Mint: ${positionNftMint.publicKey.toBase58()}`);
+        const openPositionTx = await ammv3Program.methods
+            .openPositionWithToken22Nft(
+                tickLowerIndex,
+                tickUpperIndex,
+                tickArrayLowerStartIndex,
+                tickArrayUpperStartIndex,
+                liquidity,
+                amountCetusMax,
+                amountUsdcMax,
+                true,
+                true,
+            )   
+            .accounts({
+                poolState: poolStatePda,
+                vault0Mint: cetusMint.publicKey,
+                vault1Mint: usdcMint.publicKey,
+                tokenVault0: tokenVault0Pda,
+                tokenVault1: tokenVault1Pda,
+                payer: liqudityProvider.publicKey,
+                tokenAccount0: cetusAtaOfLiquidityProvider.address,
+                tokenAccount1: usdcAtaOfLiquidityProvider.address,
+                positionNftMint: positionNftMint.publicKey,
+                positionNftOwner: liqudityProvider.publicKey,
+                positionNftAccount,
+                protocolPosition: Keypair.generate().publicKey, // dummy keypair for protocol position
+                tickArrayLower: tickArrayLowerPda,
+                tickArrayUpper: tickArrayUpperPda,
+            })
+            .signers([liqudityProvider, positionNftMint])
+            .remainingAccounts([
+                {
+                    pubkey: counterAccountPda,
+                    isSigner: false,
+                    isWritable: true, // This should be writable to allow the transfer hook to modify the account
+                },
+                {
+                    pubkey: transferHookProgram.programId,
+                    isSigner: false,
+                    isWritable: true, // This should be writable to allow the transfer hook to modify the
+                },
+                {
+                    pubkey: extraAccountMetaListPda,
+                    isSigner: false,
+                    isWritable: true, // This should be writable to allow the transfer hook to modify the account
+                },
+            ])
+            .rpc();
+        console.log(`Open Position Transaction signature: ${openPositionTx}`);
+        // get the logs
+        const openPositionTransaction = await provider.connection.getTransaction(openPositionTx, { commitment: "confirmed" });
+        console.log("Transaction logs:", openPositionTransaction?.meta?.logMessages);
+
+        // console.log(`Open Position Transaction signature: ${openPositionTx}`);
+
+        // // Verify the position was created
+        // const position = await ammv3Program.account.position.fetch(positionPda);
+        // assert.equal(position.liquidity.toString(), liquidity.toString());
+        // assert.equal(position.tickLowerIndex, tickLowerIndex);
+        // assert.equal(position.tickUpperIndex, tickUpperIndex);
+
+        // // Verify token balances in vaults increased
+        // const vault0Balance = await provider.connection.getTokenAccountBalance(tokenVault0Pda);
+        // const vault1Balance = await provider.connection.getTokenAccountBalance(tokenVault1Pda);
+        // assert.isAbove(Number(vault0Balance.value.amount), 0);
+        // assert.isAbove(Number(vault1Balance.value.amount), 0);
+
+        // // Verify liquidity provider received the position NFT
+        // const nftBalance = await provider.connection.getTokenAccountBalance(positionNftAta.address);
+        // assert.equal(nftBalance.value.amount, "1");
+    });
 });
