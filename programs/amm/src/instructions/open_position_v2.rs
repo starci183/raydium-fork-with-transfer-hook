@@ -190,6 +190,7 @@ pub fn open_position_v2<'a, 'b, 'c: 'info, 'info>(
         with_metadata,
         base_flag,
         false,
-        Vec::new(), // transfer_hook_remaining_accounts
+        vec![], // transfer_hook_remaining_accounts_for_token_0
+        vec![], // transfer_hook_remaining_accounts_for_token_1
     )
 }

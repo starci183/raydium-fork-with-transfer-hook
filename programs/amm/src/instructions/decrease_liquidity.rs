@@ -246,6 +246,7 @@ pub fn decrease_liquidity<'a, 'b, 'c: 'info, 'info>(
         token_program,
         token_2022_program_opt.clone(),
         transfer_amount_0,
+        Vec::new(), // transfer_hook_remaining_accounts
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -256,6 +257,7 @@ pub fn decrease_liquidity<'a, 'b, 'c: 'info, 'info>(
         token_program,
         token_2022_program_opt.clone(),
         transfer_amount_1,
+        Vec::new(), // transfer_hook_remaining_accounts
     )?;
 
     check_unclaimed_fees_and_vault(pool_state_loader, token_vault_0, token_vault_1)?;
@@ -518,6 +520,7 @@ pub fn collect_rewards<'a, 'b, 'c, 'info>(
                 &token_program,
                 token_program_2022.clone(),
                 transfer_amount,
+                Vec::new()
             )?;
         }
         reward_amounts[i] = transfer_amount

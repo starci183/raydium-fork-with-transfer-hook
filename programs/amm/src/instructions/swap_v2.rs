@@ -81,6 +81,8 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
     amount_specified: u64,
     sqrt_price_limit_x64: u128,
     is_base_input: bool,
+    transfer_hook_remaining_accounts_for_token_0: Vec<AccountInfo<'info>>,
+    transfer_hook_remaining_accounts_for_token_1: Vec<AccountInfo<'info>>,
 ) -> Result<u64> {
     // invoke_memo_instruction(SWAP_MEMO_MSG, ctx.memo_program.to_account_info())?;
 
@@ -234,7 +236,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_0,
-            Vec::new(),
+            transfer_hook_remaining_accounts_for_token_0,
         )?;
         if vault_1.amount <= transfer_amount_1 {
             // freeze pool, disable all instructions
@@ -249,6 +251,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_1,
+            transfer_hook_remaining_accounts_for_token_1,
         )?;
     } else {
         transfer_fee_0 = util::get_transfer_fee(vault_0_mint.clone(), amount_0).unwrap();
@@ -277,7 +280,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_1,
-            Vec::new(),
+            transfer_hook_remaining_accounts_for_token_0,
         )?;
         if vault_0.amount <= transfer_amount_0 {
             // freeze pool, disable all instructions
@@ -291,6 +294,7 @@ pub fn exact_internal_v2<'c: 'info, 'info>(
             &ctx.token_program,
             Some(ctx.token_program_2022.to_account_info()),
             transfer_amount_0,
+            transfer_hook_remaining_accounts_for_token_1,
         )?;
     }
     ctx.output_token_account.reload()?;
@@ -352,13 +356,28 @@ pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
     other_amount_threshold: u64,
     sqrt_price_limit_x64: u128,
     is_base_input: bool,
+    token0_end_index: i32,
+    token1_end_index: i32,
 ) -> Result<()> {
+    let transfer_hook_remaining_accounts_for_token_0 = ctx
+        .remaining_accounts
+        .get(0..= (token0_end_index - 1) as usize)
+        .map(|slice| slice.to_vec())
+        .unwrap_or_default();
+    let transfer_hook_remaining_accounts_for_token_1 = ctx
+        .remaining_accounts
+        .get(token0_end_index as usize..=(token1_end_index - 1) as usize)
+        .map(|slice| slice.to_vec())
+        .unwrap_or_default();
+
     let amount_result = exact_internal_v2(
         ctx.accounts,
         ctx.remaining_accounts,
         amount,
         sqrt_price_limit_x64,
         is_base_input,
+        transfer_hook_remaining_accounts_for_token_0,
+        transfer_hook_remaining_accounts_for_token_1,
     )?;
     if is_base_input {
         require_gte!(

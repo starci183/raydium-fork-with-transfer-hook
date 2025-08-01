@@ -180,7 +180,8 @@ pub fn increase_liquidity<'a, 'b, 'c: 'info, 'info>(
         tick_lower,
         tick_upper,
         base_flag,
-        transfer_hook_remaining_accounts.clone(),
+        vec![],
+        vec![]
     )?;
 
     personal_position.increase_liquidity(

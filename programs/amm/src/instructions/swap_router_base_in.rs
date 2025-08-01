@@ -34,6 +34,8 @@ pub fn swap_router_base_in<'a, 'b, 'c: 'info, 'info>(
     ctx: Context<'a, 'b, 'c, 'info, SwapRouterBaseIn<'info>>,
     amount_in: u64,
     amount_out_minimum: u64,
+    token0_end_index: u8,
+    token1_end_index: u8,
 ) -> Result<()> {
     let mut amount_in_internal = amount_in;
     let mut input_token_account = Box::new(ctx.accounts.input_token_account.clone());
@@ -96,6 +98,8 @@ pub fn swap_router_base_in<'a, 'b, 'c: 'info, 'info>(
             amount_in_internal,
             0,
             true,
+            Vec::new(),
+            Vec::new()
         )?;
         // output token is the new swap input token
         input_token_account = output_token_account;

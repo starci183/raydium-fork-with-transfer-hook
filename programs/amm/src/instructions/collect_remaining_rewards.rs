@@ -61,6 +61,7 @@ pub fn collect_remaining_rewards(
         &ctx.accounts.token_program,
         Some(ctx.accounts.token_program_2022.to_account_info()),
         amount_remaining,
+        Vec::new(),
     )?;
 
     Ok(())

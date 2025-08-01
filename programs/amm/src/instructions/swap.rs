@@ -675,6 +675,7 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
             &ctx.token_program,
             None,
             amount_1,
+            Vec::new(),
         )?;
     } else {
         transfer_from_user_to_pool_vault(
@@ -699,6 +700,7 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
             &ctx.token_program,
             None,
             amount_0,
+            Vec::new(),
         )?;
     }
     ctx.output_vault.reload()?;

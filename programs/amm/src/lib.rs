@@ -368,6 +368,8 @@ pub mod amm_v3 {
         amount_1_max: u64,
         with_metadata: bool,
         base_flag: Option<bool>,
+        token0_end_index: i32,
+        token1_end_index: i32,
     ) -> Result<()> {
         instructions::open_position_with_token22_nft(
             ctx,
@@ -380,6 +382,8 @@ pub mod amm_v3 {
             tick_array_upper_start_index,
             with_metadata,
             base_flag,
+            token0_end_index,
+            token1_end_index,
         )
     }
 
@@ -518,6 +522,8 @@ pub mod amm_v3 {
         other_amount_threshold: u64,
         sqrt_price_limit_x64: u128,
         is_base_input: bool,
+        token0_end_index: i32,
+        token1_end_index: i32,
     ) -> Result<()> {
         instructions::swap_v2(
             ctx,
@@ -525,6 +531,8 @@ pub mod amm_v3 {
             other_amount_threshold,
             sqrt_price_limit_x64,
             is_base_input,
+            token0_end_index,
+            token1_end_index,
         )
     }
 
@@ -541,7 +549,7 @@ pub mod amm_v3 {
         amount_in: u64,
         amount_out_minimum: u64,
     ) -> Result<()> {
-        instructions::swap_router_base_in(ctx, amount_in, amount_out_minimum)
+        instructions::swap_router_base_in(ctx, amount_in, amount_out_minimum, 0, 0)
     }
 
     /// The CLMM protocol decides to discard the protocol position account, which can reduce users' opening costs.

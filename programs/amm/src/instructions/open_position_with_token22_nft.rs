@@ -141,6 +141,11 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
     tick_array_upper_start_index: i32,
     with_metadata: bool,
     base_flag: Option<bool>,
+    // we build the transfer hook instruction with the remaining accounts
+    // token0: 0...token0_end_index
+    // token1: token0_end_index + 1...token1_end_index
+    token0_end_index: i32,
+    token1_end_index: i32,
 ) -> Result<()> {
     create_position_nft_mint_with_extensions(
         &ctx.accounts.payer,
@@ -163,6 +168,16 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
             token_program: ctx.accounts.token_program_2022.to_account_info(),
         },
     ))?;
+    let transfer_hook_remaining_accounts_for_token_0 = ctx
+        .remaining_accounts
+        .get(0..= (token0_end_index - 1) as usize)
+        .map(|slice| slice.to_vec())
+        .unwrap_or_default();
+    let transfer_hook_remaining_accounts_for_token_1 = ctx
+        .remaining_accounts
+        .get(token0_end_index as usize..=(token1_end_index - 1) as usize)
+        .map(|slice| slice.to_vec())
+        .unwrap_or_default();
     open_position(
         &ctx.accounts.payer,
         &ctx.accounts.position_nft_owner,
@@ -197,6 +212,7 @@ pub fn open_position_with_token22_nft<'a, 'b, 'c: 'info, 'info>(
         with_metadata,
         base_flag,
         true,
-        ctx.remaining_accounts.to_vec()
+        transfer_hook_remaining_accounts_for_token_0,
+        transfer_hook_remaining_accounts_for_token_1,
     )
 }

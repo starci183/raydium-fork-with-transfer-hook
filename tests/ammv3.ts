@@ -415,6 +415,8 @@ describe("ammv3", () => {
                 amountUsdcMax,
                 true,
                 true,
+                3,
+                0
             )   
             .accounts({
                 poolState: poolStatePda,
@@ -453,8 +455,11 @@ describe("ammv3", () => {
             .rpc();
         console.log(`Open Position Transaction signature: ${openPositionTx}`);
         // get the logs
-        const openPositionTransaction = await provider.connection.getTransaction(openPositionTx, { commitment: "confirmed" });
-        console.log("Transaction logs:", openPositionTransaction?.meta?.logMessages);
+        // const openPositionTransaction = await provider.connection.getTransaction(openPositionTx, { commitment: "confirmed" });
+        // console.log("Transaction logs:", openPositionTransaction?.meta?.logMessages);
+        // check the counter account
+        const counterAccount = await transferHookProgram.account.counterAccount.fetch(counterAccountPda);
+        assert.equal(counterAccount.counter, 2, "Counter should be 2 after opening position");
 
         // console.log(`Open Position Transaction signature: ${openPositionTx}`);
 
@@ -464,14 +469,65 @@ describe("ammv3", () => {
         // assert.equal(position.tickLowerIndex, tickLowerIndex);
         // assert.equal(position.tickUpperIndex, tickUpperIndex);
 
-        // // Verify token balances in vaults increased
-        // const vault0Balance = await provider.connection.getTokenAccountBalance(tokenVault0Pda);
-        // const vault1Balance = await provider.connection.getTokenAccountBalance(tokenVault1Pda);
-        // assert.isAbove(Number(vault0Balance.value.amount), 0);
-        // assert.isAbove(Number(vault1Balance.value.amount), 0);
+        // Verify token balances in vaults increased
+        const vault0Balance = await provider.connection.getTokenAccountBalance(tokenVault0Pda);
+        const vault1Balance = await provider.connection.getTokenAccountBalance(tokenVault1Pda);
+        console.log(`Vault 0 Balance: ${vault0Balance.value.amount}`);
+        console.log(`Vault 1 Balance: ${vault1Balance.value.amount}`);
+        assert.isAbove(Number(vault0Balance.value.amount), 0);
+        assert.isAbove(Number(vault1Balance.value.amount), 0);
 
         // // Verify liquidity provider received the position NFT
         // const nftBalance = await provider.connection.getTokenAccountBalance(positionNftAta.address);
         // assert.equal(nftBalance.value.amount, "1");
+    });
+    it("Process swap", async () => {
+        // Define swap parameters
+        const amountIn = new anchor.BN("1000000"); // 1 USDC (6 decimals)
+        const amountOutMin = new anchor.BN("1000000"); // 1 CETUS (8 decimals)
+        const sqrtPriceLimitX64 = new anchor.BN(0); // No price limit
+        const baseFlag = true; // Swap base token (Cetus)
+        const withMetadata = true; // Include metadata in the swap
+        // const swapTx = await ammv3Program.methods
+        //     .swapV2(
+        //         amountIn,
+        //         amountOutMin,
+        //         sqrtPriceLimitX64,
+        //         baseFlag,
+        //         withMetadata
+        //     )
+        //     .accounts({
+        //         poolState: poolStatePda,
+        //         vault0Mint: cetusMint.publicKey,
+        //         vault1Mint: usdcMint.publicKey,
+        //         tokenVault0: tokenVault0Pda,
+        //         tokenVault1: tokenVault1Pda,
+        //         payer: liqudityProvider.publicKey,
+        //         tokenAccount0: cetusAtaOfLiquidityProvider.address,
+        //         tokenAccount1: usdcAtaOfLiquidityProvider.address,
+        //     })
+        //     .signers([liqudityProvider])
+        //     .remainingAccounts([
+        //         {
+        //             pubkey: counterAccountPda,
+        //             isSigner: false,
+        //             isWritable: true, // This should be writable to allow the transfer hook to modify the account
+        //         },
+        //         {
+        //             pubkey: transferHookProgram.programId,
+        //             isSigner: false,
+        //             isWritable: true, // This should be writable to allow the transfer hook to modify the account
+        //         },
+        //         {
+        //             pubkey: extraAccountMetaListPda,
+        //             isSigner: false,
+        //             isWritable: true, // This should be writable to allow the transfer hook to modify the account
+        //         },
+        //     ])
+        //     .rpc();
+        // console.log(`Swap Transaction signature: ${swapTx}`);
+        // // check the counter account
+        // const counterAccount = await transferHookProgram.account.counterAccount.fetch(counterAccountPda);
+        // assert.equal(counterAccount.counter, 3, "Counter should be 3 after swap");
     });
 });
