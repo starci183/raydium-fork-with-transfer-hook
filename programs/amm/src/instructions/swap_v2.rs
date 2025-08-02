@@ -1,3 +1,4 @@
+use std::clone;
 use std::collections::VecDeque;
 use std::ops::Deref;
 
@@ -356,12 +357,17 @@ pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
     other_amount_threshold: u64,
     sqrt_price_limit_x64: u128,
     is_base_input: bool,
+    swap_remaining_accounts_end_index: i32,
     token0_end_index: i32,
     token1_end_index: i32,
 ) -> Result<()> {
+    let swap_remaining_accounts = ctx
+        .remaining_accounts
+        .get(0..=swap_remaining_accounts_end_index as usize)
+        .unwrap_or_default();
     let transfer_hook_remaining_accounts_for_token_0 = ctx
         .remaining_accounts
-        .get(0..= (token0_end_index - 1) as usize)
+        .get(swap_remaining_accounts_end_index as usize..= (token0_end_index - 1) as usize)
         .map(|slice| slice.to_vec())
         .unwrap_or_default();
     let transfer_hook_remaining_accounts_for_token_1 = ctx
@@ -369,10 +375,9 @@ pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
         .get(token0_end_index as usize..=(token1_end_index - 1) as usize)
         .map(|slice| slice.to_vec())
         .unwrap_or_default();
-
     let amount_result = exact_internal_v2(
         ctx.accounts,
-        ctx.remaining_accounts,
+        &swap_remaining_accounts,
         amount,
         sqrt_price_limit_x64,
         is_base_input,
@@ -392,6 +397,5 @@ pub fn swap_v2<'a, 'b, 'c: 'info, 'info>(
             ErrorCode::TooMuchInputPaid
         );
     }
-
     Ok(())
 }

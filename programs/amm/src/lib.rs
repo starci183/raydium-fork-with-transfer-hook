@@ -522,6 +522,7 @@ pub mod amm_v3 {
         other_amount_threshold: u64,
         sqrt_price_limit_x64: u128,
         is_base_input: bool,
+        swap_remaining_accounts_end_index: i32,
         token0_end_index: i32,
         token1_end_index: i32,
     ) -> Result<()> {
@@ -531,6 +532,7 @@ pub mod amm_v3 {
             other_amount_threshold,
             sqrt_price_limit_x64,
             is_base_input,
+            swap_remaining_accounts_end_index,
             token0_end_index,
             token1_end_index,
         )

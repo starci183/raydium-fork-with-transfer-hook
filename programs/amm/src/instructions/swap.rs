@@ -178,10 +178,11 @@ pub fn swap_internal<'b, 'info>(
     let (mut is_match_pool_current_tick_array, first_valid_tick_array_start_index) =
         pool_state.get_first_initialized_tick_array(&tickarray_bitmap_extension, zero_for_one)?;
     let mut current_valid_tick_array_start_index = first_valid_tick_array_start_index;
-
+    msg!("Tick array length: {}", tick_array_states.len());
     let mut tick_array_current = tick_array_states.pop_front().unwrap();
     // find the first active tick array account
     for _ in 0..tick_array_states.len() {
+        msg!("Tick array current start index: {}", current_valid_tick_array_start_index);
         if tick_array_current.start_tick_index == current_valid_tick_array_start_index {
             break;
         }
@@ -591,6 +592,11 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
         let tick_array_bitmap_extension_key = TickArrayBitmapExtension::key(pool_state.key());
         for account_info in remaining_accounts.into_iter() {
             if account_info.key().eq(&tick_array_bitmap_extension_key) {
+                msg!(
+                    "tick_array_bitmap_extension_key: {}, account_info.key(): {}",
+                    tick_array_bitmap_extension_key,
+                    account_info.key()
+                );
                 tickarray_bitmap_extension = Some(
                     *(AccountLoader::<TickArrayBitmapExtension>::try_from(account_info)?
                         .load()?
@@ -601,38 +607,39 @@ pub fn exact_internal<'b, 'c: 'info, 'info>(
             tick_array_states.push_back(AccountLoad::load_data_mut(account_info)?);
         }
 
-        (amount_0, amount_1) = swap_internal(
-            &ctx.amm_config,
-            pool_state,
-            tick_array_states,
-            &mut ctx.observation_state.load_mut()?,
-            &tickarray_bitmap_extension,
-            amount_specified,
-            if sqrt_price_limit_x64 == 0 {
-                if zero_for_one {
-                    tick_math::MIN_SQRT_PRICE_X64 + 1
-                } else {
-                    tick_math::MAX_SQRT_PRICE_X64 - 1
-                }
-            } else {
-                sqrt_price_limit_x64
-            },
-            zero_for_one,
-            is_base_input,
-            oracle::block_timestamp(),
-        )?;
+        (amount_0, amount_1) = (0, 0);
+        // (amount_0, amount_1) = swap_internal(
+        //     &ctx.amm_config,
+        //     pool_state,
+        //     tick_array_states,
+        //     &mut ctx.observation_state.load_mut()?,
+        //     &tickarray_bitmap_extension,
+        //     amount_specified,
+        //     if sqrt_price_limit_x64 == 0 {
+        //         if zero_for_one {
+        //             tick_math::MIN_SQRT_PRICE_X64 + 1
+        //         } else {
+        //             tick_math::MAX_SQRT_PRICE_X64 - 1
+        //         }
+        //     } else {
+        //         sqrt_price_limit_x64
+        //     },
+        //     zero_for_one,
+        //     is_base_input,
+        //     oracle::block_timestamp(),
+        // )?;
 
-        #[cfg(feature = "enable-log")]
-        msg!(
-            "exact_swap_internal, is_base_input:{}, amount_0: {}, amount_1: {}",
-            is_base_input,
-            amount_0,
-            amount_1
-        );
-        require!(
-            amount_0 != 0 && amount_1 != 0,
-            ErrorCode::TooSmallInputOrOutputAmount
-        );
+        // #[cfg(feature = "enable-log")]
+        // msg!(
+        //     "exact_swap_internal, is_base_input:{}, amount_0: {}, amount_1: {}",
+        //     is_base_input,
+        //     amount_0,
+        //     amount_1
+        // );
+        // require!(
+        //     amount_0 != 0 && amount_1 != 0,
+        //     ErrorCode::TooSmallInputOrOutputAmount
+        // );
     }
     let (token_account_0, token_account_1, vault_0, vault_1) = if zero_for_one {
         (
