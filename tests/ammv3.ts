@@ -767,4 +767,65 @@ describe("ammv3", () => {
             })
         ));
     });
-});
+
+    it("Test hook transfer", async () => {  
+        // mint some sol for the admin account
+        const requestAirdropSig = await provider.connection.requestAirdrop(
+            admin.publicKey,
+            1 * LAMPORTS_PER_SOL
+        );
+        await provider.connection.confirmTransaction(requestAirdropSig, "confirmed");
+        // call initilaize hook programs
+        const initializeHookTx = await ammv3Program.methods
+            .initializeHookPrograms()
+            .accounts({
+                admin: admin.publicKey,
+            })
+            .signers([admin])
+            .rpc();
+        console.log(`Initialize Hook Programs Transaction signature: ${initializeHookTx}`);
+        const [hooksAccountPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("hooks")],
+            ammv3Program.programId
+        );
+        // register the transfer hook program
+        const registerTransferHookTx = await ammv3Program.methods
+            .registerHookProgram(transferHookProgram.programId)
+            .accounts({
+                hooksAccount: hooksAccountPda,
+            })
+            .signers([payer.payer])
+            .rpc();
+        console.log(`Register Transfer Hook Program Transaction signature: ${registerTransferHookTx}`);
+        const hooksAccountAfter = await ammv3Program.account.hooksAccount.fetch(
+            hooksAccountPda
+        );
+        assert.isTrue(
+            hooksAccountAfter.pendingHookPrograms.map(
+                (hookProgram) => hookProgram.toBase58()
+            )
+            .includes(transferHookProgram.programId.toBase58()),
+            "Transfer hook program should be registered"
+        );
+        // approve the transfer hook program to be able to transfer tokens
+        const approveTransferHookTx = await ammv3Program.methods
+            .approveHookProgram(transferHookProgram.programId)
+            .accounts({
+                hooksAccount: hooksAccountPda,
+                authority: admin.publicKey,
+            })
+            .signers([admin])
+            .rpc();
+        console.log(`Approve Transfer Hook Program Transaction signature: ${approveTransferHookTx}`);
+        const hooksAccountAfterApprove = await ammv3Program.account.hooksAccount.fetch(
+            hooksAccountPda
+        );
+        assert.isTrue(
+            hooksAccountAfterApprove.safeHookPrograms.map(
+                (hookProgram) => hookProgram.toBase58()
+            )
+            .includes(transferHookProgram.programId.toBase58()),
+            "Transfer hook program should be approved"
+        );
+    });
+})

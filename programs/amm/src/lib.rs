@@ -566,4 +566,27 @@ pub mod amm_v3 {
     ) -> Result<()> {
         instructions::close_protocol_position(ctx)
     }
+
+    /// Initialize hook accounts, which can be used to store the hook data
+    pub fn initialize_hook_programs<'a, 'b, 'c: 'info, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, InitializeHookProgramsCtx<'info>>,
+    ) -> Result<()> {
+        instructions::initialize_hook_programs(ctx)
+    }
+
+    /// Register a hook program, which can be used to store the hook data
+    pub fn register_hook_program<'a, 'b, 'c: 'info, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, RegisterHookProgramCtx<'info>>,
+        program_id: Pubkey,
+    ) -> Result<()> {
+        instructions::register_hook_program(ctx, program_id)
+    }
+
+    /// Approve a hook program, which can be used to store the hook data
+    pub fn approve_hook_program<'a, 'b, 'c: 'info, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ApproveHookProgramCtx<'info>>,
+        program_id: Pubkey,
+    ) -> Result<()> {
+        instructions::approve_hook_program(ctx, program_id) 
+    }
 }

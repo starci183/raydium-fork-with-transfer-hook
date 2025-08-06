@@ -2,6 +2,12 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
+    #[msg("Hook already exists")]
+    HookAlreadyExists,
+    #[msg("Too many hooks")]
+    TooManyHooks,
+    #[msg("Hook not found")]
+    HookNotFound,
     #[msg("LOK")]
     LOK,
     #[msg("Not approved")]
@@ -10,9 +16,10 @@ pub enum ErrorCode {
     InvalidUpdateConfigFlag,
     #[msg("Account lack")]
     AccountLack,
+    #[msg("Unauthorized admin")]
+    UnauthorizedAdmin,
     #[msg("Remove liquitity, collect fees owed and reward then you can close position account")]
     ClosePositionErr,
-
     #[msg("Minting amount should be greater than 0")]
     ZeroMintAmount,
 

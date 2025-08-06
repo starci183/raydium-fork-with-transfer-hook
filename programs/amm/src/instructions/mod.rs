@@ -48,3 +48,12 @@ pub use collect_remaining_rewards::*;
 
 pub mod admin;
 pub use admin::*;
+
+pub mod initialize_hook_programs;
+pub use initialize_hook_programs::*;
+
+pub mod register_hook_program;
+pub use register_hook_program::*;
+
+pub mod approve_hook_program;   
+pub use approve_hook_program::*;
